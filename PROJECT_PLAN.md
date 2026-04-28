@@ -25,17 +25,17 @@ If implementation reveals that a product, architecture, scope, privacy, or data-
 - `daily_application_counts`: user id, local activity date, count, timestamps, unique `(user_id, activity_date)`, count must be `>= 0`.
 - `friendships`: requester, addressee, status `pending | accepted | declined | blocked`, timestamps, unique normalized user pair.
 - `tasks`: owner, title, notes, status `todo | doing | done`, priority, due date, sort order, timestamps.
-- Use DB RPCs for sensitive mutations: `adjust_today_application_count(delta)`, `find_profile_by_email(email)`, `send_friend_request(user_id)`, `respond_friend_request(request_id, action)`.
+- Use DB RPCs for sensitive mutations: `adjust_today_application_count(delta)`, `set_today_application_count(count)`, `find_profile_by_email(email)`, `send_friend_request(user_id)`, `respond_friend_request(request_id, action)`.
 - Do not allow direct client updates to previous activity dates. The count RPC derives “today” from the user profile timezone and rejects past-date edits at the database layer.
 
 ## Implementation Plan
 
 - Scaffold Expo TypeScript app with Expo Router, strict TypeScript, ESLint, formatting, env validation, Supabase client setup, and generated DB types.
 - Build auth flow with Google OAuth, native deep linking, session persistence, protected routes, loading states, and sign-out.
-- Build Home with three primary stat tiles, responsive activity heatmap, date-range control such as 3/6/12 months, today-only increment/decrement controls, optimistic updates, and empty/error states.
-- Build heatmap as a reusable component with accessible labels, desktop hover tooltips, mobile press tooltips, consistent green intensity thresholds, and no previous-day editing affordance.
+- Build Home with three primary stat tiles, responsive activity heatmap, date-range control such as 3/6/12 months, today-only increment/decrement controls with press-and-hold repeat, direct numeric input for today’s count, optimistic updates, and empty/error states.
+- Build heatmap as a reusable component with accessible labels, desktop hover tooltips, mobile press tooltips, selected-day detail, consistent green intensity thresholds with brighter tiers after 20 and 30 daily applications, and no previous-day editing affordance.
 - Build Friends tab with exact email search, request/accept/decline flow, friend list, and friend activity profile view.
-- Build Tasks tab as a simple Kanban board with create/edit/delete, priority, due date, notes, web drag-and-drop, and mobile-friendly status changes.
+- Build Tasks tab as a simple Kanban board with create/edit/delete, search, filtering, sorting, priority, due date, notes, web drag-and-drop, and mobile-friendly status changes.
 - Add Settings for profile basics, timezone display/change policy, privacy explanation, and account/session controls.
 - Use a restrained custom design system: semantic colors, spacing tokens, reusable buttons/cards/sheets, polished dark/light support if practical, and responsive layouts optimized separately for phone and desktop web.
 

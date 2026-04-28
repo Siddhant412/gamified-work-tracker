@@ -16,7 +16,7 @@ export const colors = {
   success: '#168246',
   successSoft: '#e1f4e7',
   shadow: 'rgba(25, 40, 30, 0.12)',
-  heatmap: ['#e8eee8', '#bde6c9', '#73c98f', '#2f9e5b', '#126b38'] as const,
+  heatmap: ['#e8eee8', '#bde6c9', '#73c98f', '#2f9e5b', '#126b38', '#16a34a', '#22e05f'] as const,
 };
 
 export const darkColors = {
@@ -37,7 +37,7 @@ export const darkColors = {
   success: '#7bdc96',
   successSoft: '#1f3d29',
   shadow: 'rgba(0, 0, 0, 0.35)',
-  heatmap: ['#263027', '#244c31', '#287244', '#2fa75e', '#69d486'] as const,
+  heatmap: ['#263027', '#244c31', '#287244', '#2fa75e', '#69d486', '#7dffa2', '#a6ffc0'] as const,
 };
 
 export const spacing = {

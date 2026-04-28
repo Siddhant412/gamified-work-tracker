@@ -28,7 +28,8 @@ import {
   findProfileByEmail as remoteFindProfileByEmail,
   respondFriendRequest as remoteRespondFriendRequest,
   sendFriendRequest as remoteSendFriendRequest,
-  updateTaskStatus as remoteUpdateTaskStatus,
+  setTodayApplicationCount as remoteSetTodayApplicationCount,
+  updateProfile as remoteUpdateProfile,
   upsertTask as remoteUpsertTask,
 } from '@/src/services/supabaseService';
 import type {
@@ -55,12 +56,21 @@ type PersistedState = {
   friendRequests: FriendRequest[];
 };
 
+type DataNotice = {
+  kind: 'success' | 'error';
+  message: string;
+};
+
 type AppDataState = PersistedState & {
   isLoading: boolean;
+  notice: DataNotice | null;
   rangeMonths: RangeMonths;
   today: ISODate;
+  clearNotice: () => void;
+  updateProfile: (patch: Pick<Partial<Profile>, 'displayName' | 'timezone'>) => Promise<void>;
   setRangeMonths: (months: RangeMonths) => void;
   adjustTodayCount: (delta: number) => void;
+  setTodayCount: (count: number) => void;
   createTask: (input: {
     title: string;
     notes?: string;
@@ -112,6 +122,7 @@ async function loadRemoteState(userId: string): Promise<PersistedState> {
 export function AppDataProvider({ children }: PropsWithChildren) {
   const auth = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const [notice, setNotice] = useState<DataNotice | null>(null);
   const [rangeMonths, setRangeMonths] = useState<RangeMonths>(6);
   const [state, setState] = useState<PersistedState>(() => initialState());
   const isRemoteMode = Boolean(isSupabaseConfigured && auth.userId && auth.userId !== 'local-user');
@@ -120,6 +131,16 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     if (!auth.userId || !isRemoteMode) return;
     setState(await loadRemoteState(auth.userId));
   }, [auth.userId, isRemoteMode]);
+
+  const clearNotice = useCallback(() => setNotice(null), []);
+
+  const reportRemoteFailure = useCallback(
+    (message: string) => {
+      setNotice({ kind: 'error', message });
+      refreshRemoteState().catch(() => undefined);
+    },
+    [refreshRemoteState],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -164,33 +185,88 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   }, [auth.isSignedIn, isLoading, isRemoteMode, state]);
 
   const today = toLocalDateKey(new Date(), state.profile.timezone);
+  const todayCount = state.counts.find((item) => item.activityDate === today)?.count ?? 0;
+
+  const updateProfile = useCallback<AppDataState['updateProfile']>(
+    async (patch) => {
+      const previousProfile = state.profile;
+      const nextProfile = {
+        ...previousProfile,
+        ...patch,
+      };
+
+      setState((current) => ({
+        ...current,
+        profile: nextProfile,
+      }));
+
+      if (!isRemoteMode || !auth.userId) {
+        setNotice({ kind: 'success', message: 'Profile updated.' });
+        return;
+      }
+
+      try {
+        const savedProfile = await remoteUpdateProfile(auth.userId, patch);
+        setState((current) => ({
+          ...current,
+          profile: savedProfile,
+        }));
+        setNotice({ kind: 'success', message: 'Profile updated.' });
+      } catch {
+        setState((current) => ({
+          ...current,
+          profile: previousProfile,
+        }));
+        setNotice({ kind: 'error', message: 'Profile update failed. Changes were rolled back.' });
+      }
+    },
+    [auth.userId, isRemoteMode, state.profile],
+  );
+
+  const applyTodayCount = useCallback(
+    (count: number) => {
+      const normalizedCount = Math.max(0, Math.floor(count));
+      setState((current) => {
+        const withoutToday = current.counts.filter((item) => item.activityDate !== today);
+
+        return {
+          ...current,
+          counts: [...withoutToday, { activityDate: today, count: normalizedCount }].sort((a, b) =>
+            a.activityDate.localeCompare(b.activityDate),
+          ),
+        };
+      });
+    },
+    [today],
+  );
+
+  const setTodayCount = useCallback<AppDataState['setTodayCount']>(
+    (count) => {
+      const normalizedCount = Math.max(0, Math.floor(count));
+      applyTodayCount(normalizedCount);
+
+      if (isRemoteMode) {
+        remoteSetTodayApplicationCount(normalizedCount)
+          .then((savedCount) => applyTodayCount(savedCount))
+          .catch(() => reportRemoteFailure("Could not save today's application count."));
+      }
+    },
+    [applyTodayCount, isRemoteMode, reportRemoteFailure],
+  );
 
   const adjustTodayCount = useCallback(
     (delta: number) => {
-      const applyCount = (nextCount?: number) => {
-        setState((current) => {
-          const existing = current.counts.find((item) => item.activityDate === today);
-          const calculatedCount = Math.max(0, nextCount ?? (existing?.count ?? 0) + delta);
-          const withoutToday = current.counts.filter((item) => item.activityDate !== today);
+      const nextCount = Math.max(0, todayCount + delta);
+      const remoteDelta = nextCount - todayCount;
+      applyTodayCount(nextCount);
 
-          return {
-            ...current,
-            counts: [...withoutToday, { activityDate: today, count: calculatedCount }].sort((a, b) =>
-              a.activityDate.localeCompare(b.activityDate),
-            ),
-          };
-        });
-      };
-
-      applyCount();
-
-      if (isRemoteMode) {
-        remoteAdjustTodayApplicationCount(delta)
-          .then((nextCount) => applyCount(nextCount))
-          .catch(() => refreshRemoteState());
+      if (isRemoteMode && remoteDelta !== 0) {
+        remoteAdjustTodayApplicationCount(remoteDelta)
+          .then((savedCount) => applyTodayCount(savedCount))
+          .catch(() => reportRemoteFailure("Could not save today's application count."));
       }
     },
-    [isRemoteMode, refreshRemoteState, today],
+    [applyTodayCount, isRemoteMode, reportRemoteFailure, todayCount],
   );
 
   const createTask = useCallback<AppDataState['createTask']>(
@@ -227,30 +303,42 @@ export function AppDataProvider({ children }: PropsWithChildren) {
               tasks: current.tasks.map((item) => (item.id === task.id ? savedTask : item)),
             }));
           })
-          .catch(() => refreshRemoteState());
+          .catch(() => reportRemoteFailure('Could not save the new task.'));
       }
     },
-    [auth.userId, isRemoteMode, refreshRemoteState],
+    [auth.userId, isRemoteMode, reportRemoteFailure],
   );
 
-  const updateTask = useCallback<AppDataState['updateTask']>((taskId, patch) => {
-    setState((current) => ({
-      ...current,
-      tasks: current.tasks.map((task) =>
-        task.id === taskId ? { ...task, ...patch, updatedAt: new Date().toISOString() } : task,
-      ),
-    }));
-  }, []);
+  const updateTask = useCallback<AppDataState['updateTask']>(
+    (taskId, patch) => {
+      const existingTask = state.tasks.find((task) => task.id === taskId);
+      if (!existingTask) return;
+
+      const updatedTask: WorkTask = {
+        ...existingTask,
+        ...patch,
+        updatedAt: new Date().toISOString(),
+      };
+
+      setState((current) => ({
+        ...current,
+        tasks: current.tasks.map((task) => (task.id === taskId ? updatedTask : task)),
+      }));
+
+      if (isRemoteMode && auth.userId) {
+        remoteUpsertTask(auth.userId, updatedTask).catch(() =>
+          reportRemoteFailure('Could not save the task update.'),
+        );
+      }
+    },
+    [auth.userId, isRemoteMode, reportRemoteFailure, state.tasks],
+  );
 
   const moveTask = useCallback<AppDataState['moveTask']>(
     (taskId, status) => {
       updateTask(taskId, { status });
-
-      if (isRemoteMode) {
-        remoteUpdateTaskStatus(taskId, status).catch(() => refreshRemoteState());
-      }
     },
-    [isRemoteMode, refreshRemoteState, updateTask],
+    [updateTask],
   );
 
   const deleteTask = useCallback<AppDataState['deleteTask']>((taskId) => {
@@ -260,9 +348,9 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     }));
 
     if (isRemoteMode) {
-      remoteDeleteTask(taskId).catch(() => refreshRemoteState());
+      remoteDeleteTask(taskId).catch(() => reportRemoteFailure('Could not delete the task.'));
     }
-  }, [isRemoteMode, refreshRemoteState]);
+  }, [isRemoteMode, reportRemoteFailure]);
 
   const searchFriendByEmail = useCallback<AppDataState['searchFriendByEmail']>(
     async (email) => {
@@ -325,10 +413,10 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       if (isRemoteMode) {
         remoteSendFriendRequest(profile.id)
           .then(() => refreshRemoteState())
-          .catch(() => refreshRemoteState());
+          .catch(() => reportRemoteFailure('Could not send the friend request.'));
       }
     },
-    [isRemoteMode, refreshRemoteState],
+    [isRemoteMode, refreshRemoteState, reportRemoteFailure],
   );
 
   const respondToFriendRequest = useCallback<AppDataState['respondToFriendRequest']>(
@@ -361,20 +449,24 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       if (isRemoteMode) {
         remoteRespondFriendRequest(requestId, action)
           .then(() => refreshRemoteState())
-          .catch(() => refreshRemoteState());
+          .catch(() => reportRemoteFailure('Could not update the friend request.'));
       }
     },
-    [isRemoteMode, refreshRemoteState, today],
+    [isRemoteMode, refreshRemoteState, reportRemoteFailure, today],
   );
 
   const value = useMemo<AppDataState>(
     () => ({
       ...state,
       isLoading,
+      notice,
       rangeMonths,
       today,
+      clearNotice,
+      updateProfile,
       setRangeMonths,
       adjustTodayCount,
+      setTodayCount,
       createTask,
       updateTask,
       moveTask,
@@ -385,16 +477,20 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     }),
     [
       adjustTodayCount,
+      clearNotice,
       createTask,
       deleteTask,
       isLoading,
       moveTask,
+      notice,
       rangeMonths,
       respondToFriendRequest,
       searchFriendByEmail,
       sendFriendRequest,
+      setTodayCount,
       state,
       today,
+      updateProfile,
       updateTask,
     ],
   );

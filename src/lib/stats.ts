@@ -8,6 +8,7 @@ export type ApplicationStats = {
   averagePerDay: number;
   activeDays: number;
   bestDay: number;
+  currentStreak: number;
 };
 
 export function countByDate(counts: DailyApplicationCount[]) {
@@ -34,7 +35,23 @@ export function getApplicationStats(
     averagePerDay: total / daysTracked,
     activeDays,
     bestDay,
+    currentStreak: getCurrentStreak(counts, today),
   };
+}
+
+export function getCurrentStreak(counts: DailyApplicationCount[], today: ISODate) {
+  const countsMap = countByDate(counts);
+  let streak = 0;
+  let cursor = today;
+
+  while ((countsMap[cursor] ?? 0) > 0) {
+    streak += 1;
+    const date = new Date(`${cursor}T12:00:00Z`);
+    date.setUTCDate(date.getUTCDate() - 1);
+    cursor = date.toISOString().slice(0, 10) as ISODate;
+  }
+
+  return streak;
 }
 
 export function heatmapLevel(count: number) {
@@ -42,5 +59,7 @@ export function heatmapLevel(count: number) {
   if (count <= 2) return 1;
   if (count <= 5) return 2;
   if (count <= 9) return 3;
-  return 4;
+  if (count <= 20) return 4;
+  if (count <= 30) return 5;
+  return 6;
 }

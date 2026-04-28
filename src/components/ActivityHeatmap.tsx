@@ -60,6 +60,12 @@ export function ActivityHeatmap({
     });
     return labels;
   }, [weeks]);
+  const selectedDay = selected ?? {
+    date: endDate,
+    count: map[endDate] ?? 0,
+    isFuture: false,
+  };
+  const selectedLevel = heatmapLevel(selectedDay.count);
 
   return (
     <View style={styles.container}>
@@ -123,10 +129,39 @@ export function ActivityHeatmap({
         </View>
       </ScrollView>
 
+      {!compact ? (
+        <View
+          style={[
+            styles.detailStrip,
+            {
+              backgroundColor: colors.surfaceSoft,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.detailSwatch,
+              {
+                backgroundColor: colors.heatmap[selectedLevel],
+                borderColor: colors.border,
+              },
+            ]}
+          />
+          <View style={styles.detailCopy}>
+            <AppText style={styles.detailTitle}>{selectedDay.date}</AppText>
+            <MutedText style={styles.detailText}>
+              {selectedDay.count === 1
+                ? '1 application'
+                : `${selectedDay.count} applications`}{' '}
+              - {heatmapIntensityLabel(selectedDay.count)}
+            </MutedText>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.legendRow}>
-        <MutedText style={styles.legendText}>
-          {selected ? `${selected.count} applications on ${selected.date}` : 'Less'}
-        </MutedText>
+        <MutedText style={styles.legendText}>Less</MutedText>
         <View style={styles.legendCells}>
           {colors.heatmap.map((color, index) => (
             <View
@@ -148,6 +183,16 @@ export function ActivityHeatmap({
       </View>
     </View>
   );
+}
+
+function heatmapIntensityLabel(count: number) {
+  if (count <= 0) return 'No activity';
+  if (count <= 2) return 'Light activity';
+  if (count <= 5) return 'Steady activity';
+  if (count <= 9) return 'Strong activity';
+  if (count <= 20) return 'High output';
+  if (count <= 30) return 'Excellent output';
+  return 'Peak output';
 }
 
 const styles = StyleSheet.create({
@@ -186,6 +231,32 @@ const styles = StyleSheet.create({
   cell: {
     borderRadius: 3,
     borderWidth: 1,
+  },
+  detailStrip: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  detailSwatch: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  detailCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  detailTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  detailText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   legendRow: {
     flexDirection: 'row',

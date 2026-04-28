@@ -121,6 +121,10 @@ export type Database = {
         Args: { delta: number };
         Returns: number;
       };
+      set_today_application_count: {
+        Args: { next_count: number };
+        Returns: number;
+      };
       find_profile_by_email: {
         Args: { search_email: string };
         Returns: {

@@ -1,3 +1,4 @@
+import { X } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { PropsWithChildren, ReactNode } from 'react';
 import {
@@ -271,6 +272,76 @@ export function SegmentedControl<T extends string | number>({
   );
 }
 
+export function Notice({
+  kind,
+  message,
+  onDismiss,
+}: {
+  kind: 'success' | 'error';
+  message: string;
+  onDismiss?: () => void;
+}) {
+  const { colors } = useTheme();
+  const isError = kind === 'error';
+
+  return (
+    <View
+      style={[
+        styles.notice,
+        {
+          backgroundColor: isError ? colors.dangerSoft : colors.successSoft,
+          borderColor: isError ? colors.danger : colors.success,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.noticeText,
+          {
+            color: isError ? colors.danger : colors.success,
+          },
+        ]}
+      >
+        {message}
+      </Text>
+      {onDismiss ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Dismiss notice" onPress={onDismiss}>
+          <X size={18} color={isError ? colors.danger : colors.success} strokeWidth={2.4} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+}: {
+  icon?: LucideIcon;
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  const { colors } = useTheme();
+
+  return (
+    <View style={[styles.emptyState, { backgroundColor: colors.surfaceSoft, borderColor: colors.border }]}>
+      {Icon ? (
+        <View style={[styles.emptyIcon, { backgroundColor: colors.primarySoft }]}>
+          <Icon size={22} color={colors.primary} strokeWidth={2.4} />
+        </View>
+      ) : null}
+      <View style={styles.emptyCopy}>
+        <AppText style={styles.emptyTitle}>{title}</AppText>
+        <MutedText style={styles.emptyDescription}>{description}</MutedText>
+      </View>
+      {action}
+    </View>
+  );
+}
+
 export function LoadingState() {
   const { colors } = useTheme();
 
@@ -379,5 +450,49 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  notice: {
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  noticeText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '800',
+  },
+  emptyState: {
+    borderWidth: 1,
+    borderRadius: radii.md,
+    padding: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  emptyIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyCopy: {
+    flex: 1,
+    minWidth: 220,
+    gap: spacing.xs,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  emptyDescription: {
+    fontSize: 13,
+    lineHeight: 19,
   },
 });

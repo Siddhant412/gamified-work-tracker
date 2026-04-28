@@ -57,6 +57,26 @@ export async function fetchCurrentProfile(userId: string) {
   return toProfile(data);
 }
 
+export async function updateProfile(
+  userId: string,
+  patch: Pick<Partial<Profile>, 'displayName' | 'timezone'>,
+) {
+  const payload = {
+    ...(patch.displayName !== undefined ? { display_name: patch.displayName } : {}),
+    ...(patch.timezone !== undefined ? { timezone: patch.timezone } : {}),
+  };
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(payload)
+    .eq('id', userId)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return toProfile(data);
+}
+
 export async function fetchApplicationCounts(userId: string, startDate: string, endDate: string) {
   const { data, error } = await supabase
     .from('daily_application_counts')
@@ -78,6 +98,14 @@ export async function fetchApplicationCounts(userId: string, startDate: string, 
 
 export async function adjustTodayApplicationCount(delta: number) {
   const { data, error } = await supabase.rpc('adjust_today_application_count', { delta });
+  if (error) throw error;
+  return data;
+}
+
+export async function setTodayApplicationCount(nextCount: number) {
+  const { data, error } = await supabase.rpc('set_today_application_count', {
+    next_count: nextCount,
+  });
   if (error) throw error;
   return data;
 }

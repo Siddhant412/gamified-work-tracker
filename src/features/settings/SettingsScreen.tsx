@@ -1,8 +1,21 @@
-import { LogOut, Shield, User } from 'lucide-react-native';
+import { Clock, LogOut, Save, Shield, User } from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { AppText, Button, Card, LoadingState, MutedText, Screen, SectionHeader } from '@/src/components/ui';
+import {
+  AppText,
+  Button,
+  Card,
+  LoadingState,
+  MutedText,
+  Notice,
+  Screen,
+  SectionHeader,
+  TextField,
+} from '@/src/components/ui';
 import { isSupabaseConfigured } from '@/src/config/env';
+import { getDeviceTimezone } from '@/src/lib/dates';
+import { isValidTimezone, normalizeTimezone, suggestedTimezones } from '@/src/lib/timezones';
 import { useAppData } from '@/src/providers/AppDataProvider';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { spacing } from '@/src/theme/tokens';
@@ -12,8 +25,34 @@ export function SettingsScreen() {
   const auth = useAuth();
   const data = useAppData();
   const { colors } = useTheme();
+  const [displayName, setDisplayName] = useState(data.profile.displayName);
+  const [timezone, setTimezone] = useState(data.profile.timezone);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setDisplayName(data.profile.displayName);
+    setTimezone(data.profile.timezone);
+  }, [data.profile.displayName, data.profile.timezone]);
+
+  const trimmedDisplayName = displayName.trim();
+  const normalizedTimezone = normalizeTimezone(timezone);
+  const timezoneIsValid = isValidTimezone(normalizedTimezone);
+  const deviceTimezone = useMemo(() => getDeviceTimezone(), []);
+  const hasChanges =
+    trimmedDisplayName !== data.profile.displayName || normalizedTimezone !== data.profile.timezone;
 
   if (data.isLoading) return <LoadingState />;
+
+  async function saveProfile() {
+    if (!trimmedDisplayName || !timezoneIsValid || !hasChanges) return;
+
+    setIsSaving(true);
+    await data.updateProfile({
+      displayName: trimmedDisplayName,
+      timezone: normalizedTimezone,
+    });
+    setIsSaving(false);
+  }
 
   return (
     <Screen>
@@ -21,6 +60,10 @@ export function SettingsScreen() {
         title="Settings"
         subtitle="Profile, timezone, privacy, and environment state for this private MVP."
       />
+
+      {data.notice ? (
+        <Notice kind={data.notice.kind} message={data.notice.message} onDismiss={data.clearNotice} />
+      ) : null}
 
       <Card style={styles.card}>
         <View style={styles.row}>
@@ -32,6 +75,55 @@ export function SettingsScreen() {
             <MutedText style={styles.detail}>{auth.userEmail ?? data.profile.email}</MutedText>
           </View>
         </View>
+
+        <View style={styles.form}>
+          <TextField
+            value={displayName}
+            onChangeText={setDisplayName}
+            placeholder="Display name"
+            autoCapitalize="words"
+          />
+          <View style={styles.timezoneRow}>
+            <TextField
+              value={timezone}
+              onChangeText={setTimezone}
+              placeholder="Timezone"
+              autoCapitalize="none"
+              style={styles.timezoneInput}
+            />
+            <Button
+              title="Device"
+              icon={Clock}
+              variant="secondary"
+              onPress={() => setTimezone(deviceTimezone)}
+            />
+          </View>
+          {!trimmedDisplayName ? (
+            <MutedText style={styles.validationText}>Display name is required.</MutedText>
+          ) : null}
+          {!timezoneIsValid ? (
+            <MutedText style={styles.validationText}>Enter a valid IANA timezone.</MutedText>
+          ) : null}
+          <View style={styles.suggestions}>
+            {suggestedTimezones.map((item) => (
+              <Button
+                key={item}
+                title={item.replace('America/', '').replace('Europe/', '').replace('Asia/', '')}
+                variant={normalizedTimezone === item ? 'secondary' : 'ghost'}
+                onPress={() => setTimezone(item)}
+                style={styles.suggestionButton}
+              />
+            ))}
+          </View>
+          <Button
+            title="Save profile"
+            icon={Save}
+            disabled={!trimmedDisplayName || !timezoneIsValid || !hasChanges}
+            loading={isSaving}
+            onPress={saveProfile}
+          />
+        </View>
+
         <View style={styles.metaGrid}>
           <View style={[styles.metaBox, { backgroundColor: colors.surfaceSoft, borderColor: colors.border }]}>
             <MutedText style={styles.metaLabel}>Timezone</MutedText>
@@ -97,6 +189,31 @@ const styles = StyleSheet.create({
   detail: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  form: {
+    gap: spacing.md,
+  },
+  timezoneRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  timezoneInput: {
+    flex: 1,
+    minWidth: 240,
+  },
+  validationText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  suggestions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  suggestionButton: {
+    minHeight: 36,
+    paddingHorizontal: spacing.md,
   },
   metaGrid: {
     flexDirection: 'row',
