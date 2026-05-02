@@ -22,7 +22,7 @@ export function TaskBoard({
   onDeleteTask,
 }: {
   tasks: WorkTask[];
-  onMoveTask: (taskId: string, status: TaskStatus) => void;
+  onMoveTask: (taskId: string, status: TaskStatus, beforeTaskId?: string | null) => void;
   onUpdateTask: (taskId: string, patch: Partial<WorkTask>) => void;
   onDeleteTask: (taskId: string) => void;
 }) {
@@ -71,7 +71,7 @@ function TaskCard({
   onDeleteTask,
 }: {
   task: WorkTask;
-  onMoveTask: (taskId: string, status: TaskStatus) => void;
+  onMoveTask: (taskId: string, status: TaskStatus, beforeTaskId?: string | null) => void;
   onUpdateTask: (taskId: string, patch: Partial<WorkTask>) => void;
   onDeleteTask: (taskId: string) => void;
 }) {
@@ -118,6 +118,7 @@ function TaskCard({
               <Button
                 key={column.status}
                 title={column.title}
+                accessibilityLabel={`Move ${task.title} to ${column.title}`}
                 variant="ghost"
                 onPress={() => onMoveTask(task.id, column.status)}
               />

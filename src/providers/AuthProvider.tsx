@@ -1,4 +1,4 @@
-import * as Linking from 'expo-linking';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as WebBrowser from 'expo-web-browser';
@@ -6,6 +6,7 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useSt
 import { Platform } from 'react-native';
 
 import { isSupabaseConfigured } from '@/src/config/env';
+import { getOAuthRedirectUrl } from '@/src/lib/authRedirect';
 import { supabase } from '@/src/lib/supabase';
 
 type AuthState = {
@@ -20,16 +21,15 @@ type AuthState = {
 };
 
 const AuthContext = createContext<AuthState | null>(null);
+const demoAuthStorageKey = 'applyloop.demo-auth.v1';
 
 WebBrowser.maybeCompleteAuthSession();
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [isReady, setIsReady] = useState(false);
-  const [isSignedIn, setIsSignedIn] = useState(!isSupabaseConfigured);
-  const [userId, setUserId] = useState<string | null>(isSupabaseConfigured ? null : 'local-user');
-  const [userEmail, setUserEmail] = useState<string | null>(
-    isSupabaseConfigured ? null : 'you@example.com',
-  );
+  const [isSignedIn, setIsSignedIn] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const router = useRouter();
   const segments = useSegments();
 
@@ -37,8 +37,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
     let isMounted = true;
 
     if (!isSupabaseConfigured) {
-      setIsReady(true);
-      SplashScreen.hideAsync();
+      AsyncStorage.getItem(demoAuthStorageKey)
+        .then((storedValue) => {
+          if (!isMounted) return;
+          const shouldResumeDemo = storedValue === 'true';
+          setIsSignedIn(shouldResumeDemo);
+          setUserId(shouldResumeDemo ? 'local-user' : null);
+          setUserEmail(shouldResumeDemo ? 'you@example.com' : null);
+        })
+        .finally(() => {
+          if (!isMounted) return;
+          setIsReady(true);
+          SplashScreen.hideAsync();
+        });
       return;
     }
 
@@ -89,6 +100,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       userEmail,
       signInWithGoogle: async () => {
         if (!isSupabaseConfigured) {
+          AsyncStorage.setItem(demoAuthStorageKey, 'true').catch(() => undefined);
           setIsSignedIn(true);
           setUserId('local-user');
           setUserEmail('you@example.com');
@@ -96,7 +108,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return;
         }
 
-        const redirectTo = Linking.createURL('/');
+        const redirectTo = getOAuthRedirectUrl();
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
@@ -110,11 +122,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (Platform.OS !== 'web' && data.url) {
           const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
           if (result.type === 'success' && result.url) {
-            await supabase.auth.exchangeCodeForSession(result.url);
+            const code = new URL(result.url).searchParams.get('code');
+            if (!code) throw new Error('Missing OAuth callback code.');
+            await supabase.auth.exchangeCodeForSession(code);
           }
         }
       },
       continueInDemoMode: () => {
+        AsyncStorage.setItem(demoAuthStorageKey, 'true').catch(() => undefined);
         setIsSignedIn(true);
         setUserId('local-user');
         setUserEmail('you@example.com');
@@ -123,6 +138,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signOut: async () => {
         if (isSupabaseConfigured) {
           await supabase.auth.signOut();
+        } else {
+          await AsyncStorage.removeItem(demoAuthStorageKey);
         }
         setIsSignedIn(false);
         setUserId(null);

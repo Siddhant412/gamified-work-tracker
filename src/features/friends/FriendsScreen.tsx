@@ -4,12 +4,13 @@ import {
   Search,
   TrendingUp,
   UserCheck,
+  UserMinus,
   UserPlus,
   Users,
   X,
 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ActivityHeatmap } from '@/src/components/ActivityHeatmap';
 import {
@@ -129,6 +130,21 @@ export function FriendsScreen() {
     setEmail('');
   }
 
+  function confirmRemoveFriend(friend: FriendWithStats) {
+    const remove = () => data.removeFriend(friend.id);
+    const message = `Remove ${friend.profile.displayName} as a friend? You will no longer share activity with each other.`;
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (window.confirm(message)) remove();
+      return;
+    }
+
+    Alert.alert('Remove friend?', message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove friend', style: 'destructive', onPress: remove },
+    ]);
+  }
+
   return (
     <Screen>
       <SectionHeader
@@ -238,6 +254,7 @@ export function FriendsScreen() {
           today={data.today}
           range={friendRange}
           onRangeChange={setFriendRange}
+          onRemove={() => confirmRemoveFriend(selectedFriend)}
         />
       ) : (
         <EmptyState
@@ -280,12 +297,14 @@ function FriendDetail({
   today,
   range,
   onRangeChange,
+  onRemove,
 }: {
   friend: FriendWithStats;
   myStats: ReturnType<typeof getApplicationStats>;
   today: ISODate;
   range: RangeMonths;
   onRangeChange: (range: RangeMonths) => void;
+  onRemove: () => void;
 }) {
   const { colors } = useTheme();
 
@@ -294,7 +313,12 @@ function FriendDetail({
       <SectionHeader
         title="Friend Activity"
         subtitle={friend.profile.email}
-        action={<SegmentedControl value={range} options={rangeOptions} onChange={onRangeChange} />}
+        action={
+          <View style={styles.detailActions}>
+            <SegmentedControl value={range} options={rangeOptions} onChange={onRangeChange} />
+            <Button title="Remove friend" icon={UserMinus} variant="danger" onPress={onRemove} />
+          </View>
+        }
       />
       <View style={styles.detailHeader}>
         <View style={styles.friendIdentity}>
@@ -509,6 +533,12 @@ const styles = StyleSheet.create({
   },
   detailCard: {
     gap: spacing.xl,
+  },
+  detailActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
   },
   detailHeader: {
     flexDirection: 'row',

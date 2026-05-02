@@ -273,3 +273,11 @@ export async function respondFriendRequest(
   if (error) throw error;
   return data;
 }
+
+export async function removeFriendship(friendshipId: string) {
+  const { data, error } = await supabase.rpc('remove_friendship', {
+    target_friendship_id: friendshipId,
+  });
+  if (error) throw error;
+  return data;
+}

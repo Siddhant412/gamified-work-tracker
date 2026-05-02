@@ -26,6 +26,7 @@ import {
   fetchFriendGraph,
   fetchTasks,
   findProfileByEmail as remoteFindProfileByEmail,
+  removeFriendship as remoteRemoveFriendship,
   respondFriendRequest as remoteRespondFriendRequest,
   sendFriendRequest as remoteSendFriendRequest,
   setTodayApplicationCount as remoteSetTodayApplicationCount,
@@ -78,14 +79,55 @@ type AppDataState = PersistedState & {
     dueDate?: ISODate | null;
   }) => void;
   updateTask: (taskId: string, patch: Partial<WorkTask>) => void;
-  moveTask: (taskId: string, status: TaskStatus) => void;
+  moveTask: (taskId: string, status: TaskStatus, beforeTaskId?: string | null) => void;
   deleteTask: (taskId: string) => void;
   searchFriendByEmail: (email: string) => Promise<Profile | null>;
   sendFriendRequest: (profile: Profile) => void;
   respondToFriendRequest: (requestId: string, action: 'accepted' | 'declined') => void;
+  removeFriend: (friendshipId: string) => void;
 };
 
 const AppDataContext = createContext<AppDataState | null>(null);
+
+function orderTasksForManualMove(
+  tasks: WorkTask[],
+  taskId: string,
+  status: TaskStatus,
+  beforeTaskId?: string | null,
+) {
+  const movingTask = tasks.find((task) => task.id === taskId);
+  if (!movingTask) return tasks;
+
+  const now = new Date().toISOString();
+  const remainingTasks = tasks.filter((task) => task.id !== taskId);
+  const targetTasks = remainingTasks
+    .filter((task) => task.status === status)
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+  const sourceAndOtherTasks = remainingTasks.filter((task) => task.status !== status);
+  const requestedIndex = beforeTaskId
+    ? targetTasks.findIndex((task) => task.id === beforeTaskId)
+    : targetTasks.length;
+  const insertIndex = requestedIndex >= 0 ? requestedIndex : targetTasks.length;
+  const movedTask: WorkTask = {
+    ...movingTask,
+    status,
+    updatedAt: now,
+  };
+  const nextTargetTasks = [
+    ...targetTasks.slice(0, insertIndex),
+    movedTask,
+    ...targetTasks.slice(insertIndex),
+  ].map((task, index) => ({
+    ...task,
+    sortOrder: (index + 1) * 1000,
+    updatedAt: task.id === taskId ? now : task.updatedAt,
+  }));
+
+  return [...sourceAndOtherTasks, ...nextTargetTasks].sort((left, right) => {
+    if (left.status !== right.status) return left.status.localeCompare(right.status);
+    return left.sortOrder - right.sortOrder;
+  });
+}
 
 function initialState(): PersistedState {
   const profile = createDemoProfile();
@@ -335,10 +377,30 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   );
 
   const moveTask = useCallback<AppDataState['moveTask']>(
-    (taskId, status) => {
-      updateTask(taskId, { status });
+    (taskId, status, beforeTaskId) => {
+      const nextTasks = orderTasksForManualMove(state.tasks, taskId, status, beforeTaskId);
+      const changedTasks = nextTasks.filter((nextTask) => {
+        const previousTask = state.tasks.find((task) => task.id === nextTask.id);
+        return (
+          previousTask &&
+          (previousTask.status !== nextTask.status || previousTask.sortOrder !== nextTask.sortOrder)
+        );
+      });
+
+      if (changedTasks.length === 0) return;
+
+      setState((current) => ({
+        ...current,
+        tasks: orderTasksForManualMove(current.tasks, taskId, status, beforeTaskId),
+      }));
+
+      if (isRemoteMode && auth.userId) {
+        Promise.all(changedTasks.map((task) => remoteUpsertTask(auth.userId as string, task))).catch(() =>
+          reportRemoteFailure('Could not save the task order.'),
+        );
+      }
     },
-    [updateTask],
+    [auth.userId, isRemoteMode, reportRemoteFailure, state.tasks],
   );
 
   const deleteTask = useCallback<AppDataState['deleteTask']>((taskId) => {
@@ -455,6 +517,34 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     [isRemoteMode, refreshRemoteState, reportRemoteFailure, today],
   );
 
+  const removeFriend = useCallback<AppDataState['removeFriend']>(
+    (friendshipId) => {
+      const friend = state.friends.find((item) => item.id === friendshipId);
+      if (!friend) return;
+
+      setState((current) => ({
+        ...current,
+        friends: current.friends.filter((item) => item.id !== friendshipId),
+      }));
+
+      if (!isRemoteMode) {
+        setNotice({ kind: 'success', message: 'Friend removed.' });
+        return;
+      }
+
+      remoteRemoveFriendship(friendshipId)
+        .then((removed) => {
+          setNotice({
+            kind: 'success',
+            message: removed ? 'Friend removed.' : 'Friend was already removed.',
+          });
+          return refreshRemoteState();
+        })
+        .catch(() => reportRemoteFailure('Could not remove the friend.'));
+    },
+    [isRemoteMode, refreshRemoteState, reportRemoteFailure, state.friends],
+  );
+
   const value = useMemo<AppDataState>(
     () => ({
       ...state,
@@ -474,6 +564,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       searchFriendByEmail,
       sendFriendRequest,
       respondToFriendRequest,
+      removeFriend,
     }),
     [
       adjustTodayCount,
@@ -484,6 +575,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       moveTask,
       notice,
       rangeMonths,
+      removeFriend,
       respondToFriendRequest,
       searchFriendByEmail,
       sendFriendRequest,

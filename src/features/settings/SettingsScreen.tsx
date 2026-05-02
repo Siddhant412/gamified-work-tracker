@@ -14,6 +14,7 @@ import {
   TextField,
 } from '@/src/components/ui';
 import { isSupabaseConfigured } from '@/src/config/env';
+import { nativeOAuthRedirectUrl } from '@/src/lib/authRedirect';
 import { getDeviceTimezone } from '@/src/lib/dates';
 import { isValidTimezone, normalizeTimezone, suggestedTimezones } from '@/src/lib/timezones';
 import { useAppData } from '@/src/providers/AppDataProvider';
@@ -104,6 +105,10 @@ export function SettingsScreen() {
           {!timezoneIsValid ? (
             <MutedText style={styles.validationText}>Enter a valid IANA timezone.</MutedText>
           ) : null}
+          <MutedText style={styles.policyText}>
+            Timezone controls which local date receives today&apos;s application count. Changing it
+            affects current and future logging only; existing activity dates are not rewritten.
+          </MutedText>
           <View style={styles.suggestions}>
             {suggestedTimezones.map((item) => (
               <Button
@@ -138,6 +143,10 @@ export function SettingsScreen() {
             <AppText style={styles.metaValue}>
               {isSupabaseConfigured ? 'Supabase configured' : 'Local preview mode'}
             </AppText>
+          </View>
+          <View style={[styles.metaBox, { backgroundColor: colors.surfaceSoft, borderColor: colors.border }]}>
+            <MutedText style={styles.metaLabel}>iOS OAuth redirect</MutedText>
+            <AppText style={styles.metaValue}>{nativeOAuthRedirectUrl}</AppText>
           </View>
         </View>
       </Card>
@@ -205,6 +214,11 @@ const styles = StyleSheet.create({
   validationText: {
     fontSize: 12,
     fontWeight: '800',
+  },
+  policyText: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '700',
   },
   suggestions: {
     flexDirection: 'row',

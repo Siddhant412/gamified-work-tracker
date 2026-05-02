@@ -142,6 +142,10 @@ export type Database = {
         Args: { request_id: string; action: 'accepted' | 'declined' | 'blocked' };
         Returns: boolean;
       };
+      remove_friendship: {
+        Args: { target_friendship_id: string };
+        Returns: boolean;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

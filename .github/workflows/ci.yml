@@ -31,5 +31,21 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Test web critical flows
+        run: npm run test:e2e
+
+      - name: Start Supabase
+        run: npx supabase start
+
+      - name: Test Supabase migrations, RLS, and RPCs
+        run: npm run test:db
+
+      - name: Stop Supabase
+        if: always()
+        run: npx supabase stop --no-backup
+
       - name: Export web
         run: npx expo export --platform web

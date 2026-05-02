@@ -4,9 +4,14 @@ node_modules/
 # Expo
 .expo/
 dist/
+dist-e2e/
 web-build/
 expo-env.d.ts
 coverage/
+playwright-report/
+test-results/
+supabase/.branches/
+supabase/.temp/
 
 # Native
 .kotlin/

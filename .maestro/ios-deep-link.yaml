@@ -1,0 +1,14 @@
+appId: ${APP_ID}
+name: ApplyLoop iOS deep link scheme
+tags:
+  - ios
+  - auth
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- assertVisible: "ApplyLoop"
+- stopApp
+- openLink: "applyloop:///"
+- assertVisible: "ApplyLoop"
+- assertVisible: "Continue local preview"

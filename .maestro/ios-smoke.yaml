@@ -1,0 +1,63 @@
+appId: ${APP_ID}
+name: ApplyLoop iOS smoke
+tags:
+  - ios
+  - smoke
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- assertVisible: "ApplyLoop"
+- tapOn: "Continue local preview"
+- assertVisible: "Keep your applications moving every day."
+- scrollUntilVisible:
+    element: "Add one application"
+    direction: DOWN
+    visibilityPercentage: 70
+- tapOn: "Add one application"
+- assertVisible: "Today-only counter"
+- openLink: "applyloop:///tasks"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element: "Board Controls"
+    direction: DOWN
+    visibilityPercentage: 70
+- tapOn: "New task title"
+- inputText: "Maestro follow up"
+- tapOn: "Create"
+- scrollUntilVisible:
+    element: "Move Maestro follow up to Doing"
+    direction: DOWN
+    visibilityPercentage: 70
+- tapOn: "Move Maestro follow up to Doing"
+- scrollUntilVisible:
+    element: "Move Maestro follow up to Todo"
+    direction: DOWN
+    visibilityPercentage: 70
+- openLink: "applyloop:///friends"
+- waitForAnimationToEnd
+- assertVisible: "Requests"
+- scrollUntilVisible:
+    element: "Accept request"
+    direction: DOWN
+    visibilityPercentage: 70
+- tapOn: "Accept request"
+- assertVisible: "Sam Rivera"
+- openLink: "applyloop:///settings"
+- waitForAnimationToEnd
+- assertVisible: "Settings"
+- scrollUntilVisible:
+    element: "applyloop:///"
+    direction: DOWN
+    visibilityPercentage: 70
+- assertVisible: "applyloop:///"
+- scrollUntilVisible:
+    element: "Privacy model"
+    direction: DOWN
+    visibilityPercentage: 70
+- scrollUntilVisible:
+    element: "Sign out"
+    direction: DOWN
+    visibilityPercentage: 70
+- tapOn: "Sign out"
+- assertVisible: "Continue local preview"

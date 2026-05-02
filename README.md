@@ -29,6 +29,7 @@ For Supabase-backed auth/data, copy `.env.example` to `.env.local` and set:
 EXPO_PUBLIC_SUPABASE_URL=
 EXPO_PUBLIC_SUPABASE_ANON_KEY=
 EXPO_PUBLIC_APP_ENV=development
+EXPO_PUBLIC_FORCE_DEMO_MODE=
 ```
 
 ## Verification
@@ -37,5 +38,55 @@ EXPO_PUBLIC_APP_ENV=development
 npm run typecheck
 npm run lint
 npm test
+npm run test:e2e:install
+npm run test:e2e
+npm run supabase:start
+npm run test:db
+npm run supabase:stop
 npx expo export --platform web
 ```
+
+## iOS OAuth And Smoke Tests
+
+The stable native OAuth redirect for iOS development and production builds is:
+
+```text
+applyloop:///
+```
+
+Add these Supabase Auth redirect allow-list entries before testing Google login on iOS:
+
+```text
+applyloop:///
+applyloop:///**
+```
+
+Expo Go uses temporary `exp://...` URLs, so use a development build or TestFlight build for a
+real Google OAuth deep-link test.
+
+Print the expected auth URLs:
+
+```bash
+npm run auth:redirects
+```
+
+Build and install a deterministic local-preview iOS app for Maestro:
+
+```bash
+npm run ios:demo:iphone16
+```
+
+Install Maestro if needed:
+
+```bash
+curl -Ls "https://get.maestro.mobile.dev" | bash
+```
+
+Run the iOS smoke suite:
+
+```bash
+npm run test:maestro:ios
+```
+
+The smoke suite verifies the native deep-link scheme, local preview sign-in, dashboard counter,
+task create/move, friend accept, settings redirect display, and sign-out.

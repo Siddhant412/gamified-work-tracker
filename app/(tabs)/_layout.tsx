@@ -26,6 +26,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
+          tabBarAccessibilityLabel: 'Home tab',
           tabBarIcon: ({ color }) => <Home size={21} color={color} strokeWidth={2.4} />,
         }}
       />
@@ -33,6 +34,7 @@ export default function TabLayout() {
         name="friends"
         options={{
           title: 'Friends',
+          tabBarAccessibilityLabel: 'Friends tab',
           tabBarIcon: ({ color }) => <Users size={21} color={color} strokeWidth={2.4} />,
         }}
       />
@@ -40,6 +42,7 @@ export default function TabLayout() {
         name="tasks"
         options={{
           title: 'Tasks',
+          tabBarAccessibilityLabel: 'Tasks tab',
           tabBarIcon: ({ color }) => <CheckSquare size={21} color={color} strokeWidth={2.4} />,
         }}
       />
@@ -47,6 +50,7 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: 'Settings',
+          tabBarAccessibilityLabel: 'Settings tab',
           tabBarIcon: ({ color }) => <Settings size={21} color={color} strokeWidth={2.4} />,
         }}
       />

@@ -29,6 +29,7 @@ export function ActivityHeatmap({
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const [selected, setSelected] = useState<HeatmapDay | null>(null);
+  const [tooltipDay, setTooltipDay] = useState<HeatmapDay | null>(null);
   const map = useMemo(() => countByDate(counts), [counts]);
 
   const startDate = useMemo(() => startOfHeatmapWeek(subtractMonths(endDate, months)), [endDate, months]);
@@ -65,6 +66,7 @@ export function ActivityHeatmap({
     count: map[endDate] ?? 0,
     isFuture: false,
   };
+  const activeTooltipDay = tooltipDay ?? selected;
   const selectedLevel = heatmapLevel(selectedDay.count);
 
   return (
@@ -107,8 +109,15 @@ export function ActivityHeatmap({
                         key={day.date}
                         accessibilityLabel={`${day.count} applications on ${day.date}`}
                         disabled={day.isFuture}
-                        onPress={() => setSelected(day)}
-                        onHoverIn={() => setSelected(day)}
+                        onPress={() => {
+                          setSelected(day);
+                          setTooltipDay(day);
+                        }}
+                        onHoverIn={() => {
+                          setSelected(day);
+                          setTooltipDay(day);
+                        }}
+                        onHoverOut={() => setTooltipDay(null)}
                         style={[
                           styles.cell,
                           {
@@ -128,6 +137,24 @@ export function ActivityHeatmap({
           </View>
         </View>
       </ScrollView>
+
+      {activeTooltipDay ? (
+        <View
+          accessibilityRole="summary"
+          style={[
+            styles.tooltip,
+            {
+              backgroundColor: colors.ink,
+              borderColor: colors.borderStrong,
+            },
+          ]}
+        >
+          <AppText style={[styles.tooltipTitle, { color: colors.surface }]}>Activity tooltip</AppText>
+          <AppText style={[styles.tooltipText, { color: colors.surface }]}>
+            {activeTooltipDay.date} - {formatApplicationCount(activeTooltipDay.count)}
+          </AppText>
+        </View>
+      ) : null}
 
       {!compact ? (
         <View
@@ -195,8 +222,13 @@ function heatmapIntensityLabel(count: number) {
   return 'Peak output';
 }
 
+function formatApplicationCount(count: number) {
+  return count === 1 ? '1 application' : `${count} applications`;
+}
+
 const styles = StyleSheet.create({
   container: {
+    position: 'relative',
     gap: spacing.md,
   },
   monthRow: {
@@ -231,6 +263,27 @@ const styles = StyleSheet.create({
   cell: {
     borderRadius: 3,
     borderWidth: 1,
+  },
+  tooltip: {
+    position: 'absolute',
+    top: 28,
+    right: 0,
+    zIndex: 10,
+    minWidth: 184,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    gap: 2,
+  },
+  tooltipTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  tooltipText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
   detailStrip: {
     borderWidth: 1,

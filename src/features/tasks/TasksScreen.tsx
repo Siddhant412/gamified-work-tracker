@@ -17,7 +17,7 @@ import {
 } from '@/src/components/ui';
 import { useAppData } from '@/src/providers/AppDataProvider';
 import { spacing } from '@/src/theme/tokens';
-import type { TaskPriority, TaskStatus } from '@/src/types/domain';
+import type { ISODate, TaskPriority, TaskStatus } from '@/src/types/domain';
 
 import { TaskBoard } from './TaskBoard';
 import {
@@ -58,6 +58,7 @@ export function TasksScreen() {
   const data = useAppData();
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
+  const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
@@ -74,6 +75,8 @@ export function TasksScreen() {
     [data.tasks, priorityFilter, query, sortMode, statusFilter],
   );
   const activeFilterCount = [query.trim(), statusFilter !== 'all', priorityFilter !== 'all'].filter(Boolean).length;
+  const trimmedDueDate = dueDate.trim();
+  const dueDateIsValid = !trimmedDueDate || /^\d{4}-\d{2}-\d{2}$/.test(trimmedDueDate);
   const statusCounts = useMemo(
     () =>
       data.tasks.reduce<Record<TaskStatus, number>>(
@@ -111,26 +114,43 @@ export function TasksScreen() {
           <TextField
             value={title}
             onChangeText={setTitle}
+            accessibilityLabel="New task title"
             placeholder="Add a task"
             returnKeyType="done"
             style={styles.titleInput}
           />
           <SegmentedControl value={priority} options={priorityOptions} onChange={setPriority} />
+          <TextField
+            value={dueDate}
+            onChangeText={setDueDate}
+            accessibilityLabel="New task due date"
+            placeholder="Due date"
+            inputMode="numeric"
+            style={styles.dueDateInput}
+          />
           <Button
             title="Create"
             icon={Plus}
-            disabled={!title.trim()}
+            disabled={!title.trim() || !dueDateIsValid}
             onPress={() => {
-              data.createTask({ title, notes, priority });
+              data.createTask({
+                title,
+                notes,
+                priority,
+                dueDate: trimmedDueDate ? (trimmedDueDate as ISODate) : null,
+              });
               setTitle('');
               setNotes('');
+              setDueDate('');
               setPriority('medium');
             }}
           />
         </View>
+        {!dueDateIsValid ? <MutedText style={styles.validationText}>Date must be YYYY-MM-DD.</MutedText> : null}
         <TextField
           value={notes}
           onChangeText={setNotes}
+          accessibilityLabel="New task notes"
           placeholder="Notes"
           multiline
           style={styles.notesInput}
@@ -255,9 +275,16 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 240,
   },
+  dueDateInput: {
+    width: 150,
+  },
   notesInput: {
     minHeight: 74,
     paddingTop: spacing.md,
+  },
+  validationText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
   filterGroups: {
     gap: spacing.md,
