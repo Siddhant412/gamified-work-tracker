@@ -43,6 +43,9 @@ jobs:
       - name: Test Supabase migrations, RLS, and RPCs
         run: npm run test:db
 
+      - name: Check generated Supabase types
+        run: npm run db:types:check
+
       - name: Stop Supabase
         if: always()
         run: npx supabase stop --no-backup

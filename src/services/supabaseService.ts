@@ -31,8 +31,8 @@ function toTask(row: {
   id: string;
   title: string;
   notes: string;
-  status: TaskStatus;
-  priority: WorkTask['priority'];
+  status: string;
+  priority: string;
   due_date: string | null;
   sort_order: number;
   created_at: string;
@@ -42,8 +42,8 @@ function toTask(row: {
     id: row.id,
     title: row.title,
     notes: row.notes,
-    status: row.status,
-    priority: row.priority,
+    status: row.status as TaskStatus,
+    priority: row.priority as WorkTask['priority'],
     dueDate: row.due_date as WorkTask['dueDate'],
     sortOrder: row.sort_order,
     createdAt: row.created_at,
@@ -78,15 +78,7 @@ export async function updateProfile(
 }
 
 export async function fetchApplicationCounts(userId: string, startDate: string, endDate: string) {
-  const { data, error } = await supabase
-    .from('daily_application_counts')
-    .select('activity_date,count')
-    .eq('user_id', userId)
-    .gte('activity_date', startDate)
-    .lte('activity_date', endDate)
-    .order('activity_date', { ascending: true });
-
-  if (error) throw error;
+  const data = await fetchCountRows({ userIds: [userId], startDate, endDate });
 
   return data.map(
     (row): DailyApplicationCount => ({
@@ -121,7 +113,7 @@ export async function fetchTasks(ownerId: string) {
   return data.map(toTask);
 }
 
-export async function fetchFriendGraph(userId: string, startDate: ISODate, endDate: ISODate) {
+export async function fetchFriendGraph(userId: string, endDate: ISODate) {
   const { data: friendshipRows, error: friendshipError } = await supabase
     .from('friendships')
     .select('*')
@@ -155,15 +147,7 @@ export async function fetchFriendGraph(userId: string, startDate: ISODate, endDa
   const countsByUser = new Map<string, DailyApplicationCount[]>();
 
   if (acceptedFriendIds.length > 0) {
-    const { data: countRows, error: countError } = await supabase
-      .from('daily_application_counts')
-      .select('user_id,activity_date,count')
-      .in('user_id', acceptedFriendIds)
-      .gte('activity_date', startDate)
-      .lte('activity_date', endDate)
-      .order('activity_date', { ascending: true });
-
-    if (countError) throw countError;
+    const countRows = await fetchCountRows({ userIds: acceptedFriendIds, endDate });
 
     countRows.forEach((row) => {
       const existing = countsByUser.get(row.user_id) ?? [];
@@ -203,6 +187,43 @@ export async function fetchFriendGraph(userId: string, startDate: ISODate, endDa
   });
 
   return { friends, friendRequests };
+}
+
+const countPageSize = 1000;
+
+async function fetchCountRows({
+  userIds,
+  startDate,
+  endDate,
+}: {
+  userIds: string[];
+  startDate?: string;
+  endDate: string;
+}) {
+  const rows: { user_id: string; activity_date: string; count: number }[] = [];
+  let from = 0;
+
+  while (true) {
+    let query = supabase
+      .from('daily_application_counts')
+      .select('user_id,activity_date,count')
+      .in('user_id', userIds)
+      .lte('activity_date', endDate)
+      .order('activity_date', { ascending: true })
+      .order('user_id', { ascending: true })
+      .range(from, from + countPageSize - 1);
+
+    if (startDate) {
+      query = query.gte('activity_date', startDate);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    rows.push(...data);
+    if (data.length < countPageSize) return rows;
+    from += countPageSize;
+  }
 }
 
 export async function upsertTask(ownerId: string, task: Partial<WorkTask> & { title: string }) {

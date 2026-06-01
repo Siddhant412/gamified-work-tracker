@@ -42,8 +42,15 @@ npm run test:e2e:install
 npm run test:e2e
 npm run supabase:start
 npm run test:db
+npm run db:types:check
 npm run supabase:stop
 npx expo export --platform web
+```
+
+Regenerate `src/types/database.ts` after a migration changes the database contract:
+
+```bash
+npm run db:types
 ```
 
 ## iOS OAuth And Smoke Tests

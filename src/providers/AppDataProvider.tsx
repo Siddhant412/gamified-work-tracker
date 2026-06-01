@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -16,7 +17,7 @@ import {
   createDemoRequests,
   createDemoTasks,
 } from '@/src/lib/demoData';
-import { subtractMonths, toLocalDateKey } from '@/src/lib/dates';
+import { toLocalDateKey } from '@/src/lib/dates';
 import { isSupabaseConfigured } from '@/src/config/env';
 import {
   adjustTodayApplicationCount as remoteAdjustTodayApplicationCount,
@@ -145,11 +146,10 @@ function initialState(): PersistedState {
 async function loadRemoteState(userId: string): Promise<PersistedState> {
   const profile = await fetchCurrentProfile(userId);
   const today = toLocalDateKey(new Date(), profile.timezone);
-  const startDate = subtractMonths(today, 12);
   const [counts, tasks, friendGraph] = await Promise.all([
-    fetchApplicationCounts(userId, startDate, today),
+    fetchApplicationCounts(userId, profile.trackingStartedOn, today),
     fetchTasks(userId),
-    fetchFriendGraph(userId, startDate, today),
+    fetchFriendGraph(userId, today),
   ]);
 
   return {
@@ -167,6 +167,8 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   const [notice, setNotice] = useState<DataNotice | null>(null);
   const [rangeMonths, setRangeMonths] = useState<RangeMonths>(6);
   const [state, setState] = useState<PersistedState>(() => initialState());
+  const countMutationSequence = useRef(0);
+  const countMutationQueue = useRef<Promise<void>>(Promise.resolve());
   const isRemoteMode = Boolean(isSupabaseConfigured && auth.userId && auth.userId !== 'local-user');
 
   const refreshRemoteState = useCallback(async () => {
@@ -194,10 +196,16 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       }
 
       if (isRemoteMode && auth.userId) {
-        const remoteState = await loadRemoteState(auth.userId);
-        if (!isMounted) return;
-        setState(remoteState);
-        setIsLoading(false);
+        try {
+          const remoteState = await loadRemoteState(auth.userId);
+          if (!isMounted) return;
+          setState(remoteState);
+        } catch {
+          if (!isMounted) return;
+          setNotice({ kind: 'error', message: 'Could not load your data. Try signing in again.' });
+        } finally {
+          if (isMounted) setIsLoading(false);
+        }
         return;
       }
 
@@ -282,18 +290,30 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     [today],
   );
 
+  const enqueueCountMutation = useCallback(
+    (mutation: () => Promise<number>) => {
+      const sequence = ++countMutationSequence.current;
+      countMutationQueue.current = countMutationQueue.current
+        .catch(() => undefined)
+        .then(mutation)
+        .then((savedCount) => {
+          if (sequence === countMutationSequence.current) applyTodayCount(savedCount);
+        })
+        .catch(() => reportRemoteFailure("Could not save today's application count."));
+    },
+    [applyTodayCount, reportRemoteFailure],
+  );
+
   const setTodayCount = useCallback<AppDataState['setTodayCount']>(
     (count) => {
       const normalizedCount = Math.max(0, Math.floor(count));
       applyTodayCount(normalizedCount);
 
       if (isRemoteMode) {
-        remoteSetTodayApplicationCount(normalizedCount)
-          .then((savedCount) => applyTodayCount(savedCount))
-          .catch(() => reportRemoteFailure("Could not save today's application count."));
+        enqueueCountMutation(() => remoteSetTodayApplicationCount(normalizedCount));
       }
     },
-    [applyTodayCount, isRemoteMode, reportRemoteFailure],
+    [applyTodayCount, enqueueCountMutation, isRemoteMode],
   );
 
   const adjustTodayCount = useCallback(
@@ -303,12 +323,10 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       applyTodayCount(nextCount);
 
       if (isRemoteMode && remoteDelta !== 0) {
-        remoteAdjustTodayApplicationCount(remoteDelta)
-          .then((savedCount) => applyTodayCount(savedCount))
-          .catch(() => reportRemoteFailure("Could not save today's application count."));
+        enqueueCountMutation(() => remoteAdjustTodayApplicationCount(remoteDelta));
       }
     },
-    [applyTodayCount, isRemoteMode, reportRemoteFailure, todayCount],
+    [applyTodayCount, enqueueCountMutation, isRemoteMode, todayCount],
   );
 
   const createTask = useCallback<AppDataState['createTask']>(

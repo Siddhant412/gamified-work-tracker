@@ -8,7 +8,7 @@ If implementation reveals that a product, architecture, scope, privacy, or data-
 
 - Build a private MVP as one shared Expo + TypeScript app for iOS and web, backed by Supabase Auth, Postgres, and Row Level Security.
 - V1 centers on immutable daily job-application counts, a GitHub/LeetCode-style activity heatmap, exact friend activity sharing, and a simple Kanban task board.
-- The repo is currently empty except `README.md`, so implementation begins with clean scaffolding rather than adapting existing code.
+- The repo contains the shared Expo app, Supabase migrations, automated checks, and release scaffolding described below. Remaining work must preserve this plan unless a change is explicitly approved.
 
 ## Key Product And Architecture Decisions
 

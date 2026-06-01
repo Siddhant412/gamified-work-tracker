@@ -1,6 +1,6 @@
 begin;
 
-select plan(41);
+select plan(48);
 
 create or replace function pg_temp.try_sql(sql text)
 returns text
@@ -182,6 +182,14 @@ select is(
   ),
   'ok',
   'owner can directly insert their own task'
+);
+
+select is(
+  pg_temp.try_sql(
+    'insert into public.tasks (owner_id, title, sort_order) values (''00000000-0000-0000-0000-000000000001'', ''Timestamp-ordered task'', 1770000000000)'
+  ),
+  'ok',
+  'task sort order accepts millisecond timestamps'
 );
 
 select ok(
@@ -519,6 +527,42 @@ select is(
 );
 
 reset role;
+
+select is(
+  has_function_privilege('anon', 'public.adjust_today_application_count(integer)', 'execute'),
+  false,
+  'anonymous users cannot adjust application counts'
+);
+
+select is(
+  has_function_privilege('anon', 'public.set_today_application_count(integer)', 'execute'),
+  false,
+  'anonymous users cannot set application counts'
+);
+
+select is(
+  has_function_privilege('anon', 'public.find_profile_by_email(text)', 'execute'),
+  false,
+  'anonymous users cannot search profiles by email'
+);
+
+select is(
+  has_function_privilege('anon', 'public.send_friend_request(uuid)', 'execute'),
+  false,
+  'anonymous users cannot send friend requests'
+);
+
+select is(
+  has_function_privilege('anon', 'public.respond_friend_request(uuid, text)', 'execute'),
+  false,
+  'anonymous users cannot respond to friend requests'
+);
+
+select is(
+  has_function_privilege('anon', 'public.remove_friendship(uuid)', 'execute'),
+  false,
+  'anonymous users cannot remove friendships'
+);
 
 select * from finish();
 
