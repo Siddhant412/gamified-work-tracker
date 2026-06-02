@@ -20,11 +20,15 @@ export function ActivityHeatmap({
   endDate,
   months,
   compact = false,
+  mode = 'applications',
+  showLegend = true,
 }: {
   counts: DailyApplicationCount[];
   endDate: ISODate;
   months: RangeMonths;
   compact?: boolean;
+  mode?: 'applications' | 'completion';
+  showLegend?: boolean;
 }) {
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
@@ -67,7 +71,7 @@ export function ActivityHeatmap({
     isFuture: false,
   };
   const activeTooltipDay = tooltipDay ?? selected;
-  const selectedLevel = heatmapLevel(selectedDay.count);
+  const selectedLevel = getLevel(selectedDay.count, mode);
 
   return (
     <View style={styles.container}>
@@ -103,11 +107,11 @@ export function ActivityHeatmap({
               {weeks.map((week, weekIndex) => (
                 <View key={`week-${weekIndex}`} style={styles.week}>
                   {week.map((day) => {
-                    const level = day.isFuture ? 0 : heatmapLevel(day.count);
+                    const level = day.isFuture ? 0 : getLevel(day.count, mode);
                     return (
                       <Pressable
                         key={day.date}
-                        accessibilityLabel={`${day.count} applications on ${day.date}`}
+                        accessibilityLabel={getAccessibilityLabel(day, mode)}
                         disabled={day.isFuture}
                         onPress={() => {
                           setSelected(day);
@@ -151,7 +155,7 @@ export function ActivityHeatmap({
         >
           <AppText style={[styles.tooltipTitle, { color: colors.surface }]}>Activity tooltip</AppText>
           <AppText style={[styles.tooltipText, { color: colors.surface }]}>
-            {activeTooltipDay.date} - {formatApplicationCount(activeTooltipDay.count)}
+            {activeTooltipDay.date} - {formatActivity(activeTooltipDay.count, mode)}
           </AppText>
         </View>
       ) : null}
@@ -178,36 +182,39 @@ export function ActivityHeatmap({
           <View style={styles.detailCopy}>
             <AppText style={styles.detailTitle}>{selectedDay.date}</AppText>
             <MutedText style={styles.detailText}>
-              {selectedDay.count === 1
-                ? '1 application'
-                : `${selectedDay.count} applications`}{' '}
-              - {heatmapIntensityLabel(selectedDay.count)}
+              {formatActivity(selectedDay.count, mode)} - {heatmapIntensityLabel(selectedDay.count)}
             </MutedText>
           </View>
         </View>
       ) : null}
 
-      <View style={styles.legendRow}>
-        <MutedText style={styles.legendText}>Less</MutedText>
-        <View style={styles.legendCells}>
-          {colors.heatmap.map((color, index) => (
-            <View
-              key={color}
-              style={[
-                styles.legendCell,
-                {
-                  backgroundColor: color,
-                  borderColor: colors.border,
-                  width: cellSize,
-                  height: cellSize,
-                },
-              ]}
-              accessibilityLabel={`Heatmap level ${index}`}
-            />
-          ))}
+      {showLegend ? (
+        <View style={styles.legendRow}>
+          <MutedText style={styles.legendText}>{mode === 'completion' ? 'Not done' : 'Less'}</MutedText>
+          <View style={styles.legendCells}>
+            {(mode === 'completion' ? [colors.heatmap[0], colors.heatmap[4]] : colors.heatmap).map(
+              (color, index) => (
+                <View
+                  key={`${color}-${index}`}
+                  style={[
+                    styles.legendCell,
+                    {
+                      backgroundColor: color,
+                      borderColor: colors.border,
+                      width: cellSize,
+                      height: cellSize,
+                    },
+                  ]}
+                  accessibilityLabel={`Heatmap level ${index}`}
+                />
+              ),
+            )}
+          </View>
+          <AppText style={[styles.legendText, { color: colors.muted }]}>
+            {mode === 'completion' ? 'Done' : 'More'}
+          </AppText>
         </View>
-        <AppText style={[styles.legendText, { color: colors.muted }]}>More</AppText>
-      </View>
+      ) : null}
     </View>
   );
 }
@@ -224,6 +231,20 @@ function heatmapIntensityLabel(count: number) {
 
 function formatApplicationCount(count: number) {
   return count === 1 ? '1 application' : `${count} applications`;
+}
+
+function formatActivity(count: number, mode: 'applications' | 'completion') {
+  return mode === 'completion' ? (count > 0 ? 'Completed' : 'Not completed') : formatApplicationCount(count);
+}
+
+function getAccessibilityLabel(day: HeatmapDay, mode: 'applications' | 'completion') {
+  return mode === 'completion'
+    ? `${day.count > 0 ? 'Completed' : 'Not completed'} on ${day.date}`
+    : `${day.count} applications on ${day.date}`;
+}
+
+function getLevel(count: number, mode: 'applications' | 'completion') {
+  return mode === 'completion' && count > 0 ? 4 : heatmapLevel(count);
 }
 
 const styles = StyleSheet.create({

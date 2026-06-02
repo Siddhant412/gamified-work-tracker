@@ -9,7 +9,8 @@ decisions. Do not change those decisions without explicit approval.
 ## Current Implementation
 
 - Shared Expo Router app for web and iOS.
-- Home dashboard with total/today/average stats, activity heatmap, and a today-only counter.
+- Home dashboard with total/today/average stats, application heatmap, and a today-only counter.
+- Private daily task check-ins with a per-task homepage heatmap, streak, and today-only toggle.
 - Friends tab with exact-email search flow, pending requests, and friend activity heatmaps.
 - Tasks tab with a simple Kanban board and web drag-and-drop support.
 - Settings tab with profile, timezone, backend mode, and privacy summary.

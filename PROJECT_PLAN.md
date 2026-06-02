@@ -7,7 +7,7 @@ If implementation reveals that a product, architecture, scope, privacy, or data-
 ## Summary
 
 - Build a private MVP as one shared Expo + TypeScript app for iOS and web, backed by Supabase Auth, Postgres, and Row Level Security.
-- V1 centers on immutable daily job-application counts, a GitHub/LeetCode-style activity heatmap, exact friend activity sharing, and a simple Kanban task board.
+- V1 centers on immutable daily job-application counts, GitHub/LeetCode-style activity heatmaps, exact friend activity sharing, a simple Kanban task board, and private daily completion heatmaps for repeatable tasks.
 - The repo contains the shared Expo app, Supabase migrations, automated checks, and release scaffolding described below. Remaining work must preserve this plan unless a change is explicitly approved.
 
 ## Key Product And Architecture Decisions
@@ -20,12 +20,13 @@ If implementation reveals that a product, architecture, scope, privacy, or data-
 
 ## Core Interfaces And Data Model
 
-- Tables: `profiles`, `daily_application_counts`, `friendships`, and `tasks`.
+- Tables: `profiles`, `daily_application_counts`, `friendships`, `tasks`, and `task_daily_completions`.
 - `profiles`: user id, email, display name, avatar URL, timezone, tracking start date, timestamps.
 - `daily_application_counts`: user id, local activity date, count, timestamps, unique `(user_id, activity_date)`, count must be `>= 0`.
 - `friendships`: requester, addressee, status `pending | accepted | declined | blocked`, timestamps, unique normalized user pair.
 - `tasks`: owner, title, notes, status `todo | doing | done`, priority, due date, sort order, timestamps.
-- Use DB RPCs for sensitive mutations: `adjust_today_application_count(delta)`, `set_today_application_count(count)`, `find_profile_by_email(email)`, `send_friend_request(user_id)`, `respond_friend_request(request_id, action)`.
+- `task_daily_completions`: task id, local activity date, completion timestamp, unique `(task_id, activity_date)`.
+- Use DB RPCs for sensitive mutations: `adjust_today_application_count(delta)`, `set_today_application_count(count)`, `set_today_task_completion(task_id, completed)`, `find_profile_by_email(email)`, `send_friend_request(user_id)`, `respond_friend_request(request_id, action)`.
 - Do not allow direct client updates to previous activity dates. The count RPC derives “today” from the user profile timezone and rejects past-date edits at the database layer.
 
 ## Implementation Plan
@@ -36,12 +37,13 @@ If implementation reveals that a product, architecture, scope, privacy, or data-
 - Build heatmap as a reusable component with accessible labels, desktop hover tooltips, mobile press tooltips, selected-day detail, consistent green intensity thresholds with brighter tiers after 20 and 30 daily applications, and no previous-day editing affordance.
 - Build Friends tab with exact email search, request/accept/decline flow, friend list, and friend activity profile view.
 - Build Tasks tab as a simple Kanban board with create/edit/delete, search, filtering, sorting, priority, due date, notes, web drag-and-drop, and mobile-friendly status changes.
+- Add private task-level daily completion tracking on Home. Each task has a compact heatmap, completion-day count, streak, and a today-only done toggle. Historical task completion cells remain read-only.
 - Add Settings for profile basics, timezone display/change policy, privacy explanation, and account/session controls.
 - Use a restrained custom design system: semantic colors, spacing tokens, reusable buttons/cards/sheets, polished dark/light support if practical, and responsive layouts optimized separately for phone and desktop web.
 
 ## Security, Quality, And Release
 
-- Enable RLS on all public tables. Users can read/write their own profile, counts, and tasks; friends can read only accepted friends’ profile summary and activity counts.
+- Enable RLS on all public tables. Users can read/write their own profile, counts, tasks, and task completion activity; friends can read only accepted friends’ profile summary and application activity counts. Task data and task completion activity stay private.
 - Never expose Supabase service-role keys in the client. Use exact OAuth redirect URLs for local, staging, production web, and native deep links.
 - Add unit tests for date/timezone logic, stat calculations, heatmap bucketing, and RPC validation assumptions.
 - Add integration tests for auth-protected data access, today-only count changes, friend visibility, and task CRUD.

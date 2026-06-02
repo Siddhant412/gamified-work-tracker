@@ -4,6 +4,7 @@ import type {
   FriendRequest,
   ISODate,
   Profile,
+  TaskDailyCompletion,
   WorkTask,
 } from '@/src/types/domain';
 
@@ -91,6 +92,28 @@ export function createDemoTasks(): WorkTask[] {
       updatedAt: now,
     },
   ];
+}
+
+export function createDemoTaskCompletions(today: ISODate): TaskDailyCompletion[] {
+  const tasks = createDemoTasks();
+  const start = subtractMonths(today, 3);
+  const completions: TaskDailyCompletion[] = [];
+  let cursor = start;
+  let index = 0;
+
+  while (cursor <= today) {
+    tasks.forEach((task, taskIndex) => {
+      const cadence = taskIndex + 2;
+      if ((index + taskIndex) % cadence !== 0 && (index * 3 + taskIndex) % 11 !== 0) {
+        completions.push({ taskId: task.id, activityDate: cursor });
+      }
+    });
+
+    cursor = addDays(cursor, 1);
+    index += 1;
+  }
+
+  return completions;
 }
 
 export function createDemoFriends(today: ISODate): FriendActivity[] {

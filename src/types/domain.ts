@@ -29,6 +29,11 @@ export type WorkTask = {
   updatedAt: string;
 };
 
+export type TaskDailyCompletion = {
+  taskId: string;
+  activityDate: ISODate;
+};
+
 export type FriendActivity = {
   id: string;
   profile: Profile;

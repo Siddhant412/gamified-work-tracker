@@ -15,6 +15,7 @@ import {
   createDemoFriends,
   createDemoProfile,
   createDemoRequests,
+  createDemoTaskCompletions,
   createDemoTasks,
 } from '@/src/lib/demoData';
 import { toLocalDateKey } from '@/src/lib/dates';
@@ -25,12 +26,14 @@ import {
   fetchApplicationCounts,
   fetchCurrentProfile,
   fetchFriendGraph,
+  fetchTaskCompletions,
   fetchTasks,
   findProfileByEmail as remoteFindProfileByEmail,
   removeFriendship as remoteRemoveFriendship,
   respondFriendRequest as remoteRespondFriendRequest,
   sendFriendRequest as remoteSendFriendRequest,
   setTodayApplicationCount as remoteSetTodayApplicationCount,
+  setTodayTaskCompletion as remoteSetTodayTaskCompletion,
   updateProfile as remoteUpdateProfile,
   upsertTask as remoteUpsertTask,
 } from '@/src/services/supabaseService';
@@ -42,6 +45,7 @@ import type {
   Profile,
   RangeMonths,
   TaskPriority,
+  TaskDailyCompletion,
   TaskStatus,
   WorkTask,
 } from '@/src/types/domain';
@@ -54,6 +58,7 @@ type PersistedState = {
   profile: Profile;
   counts: DailyApplicationCount[];
   tasks: WorkTask[];
+  taskCompletions: TaskDailyCompletion[];
   friends: FriendActivity[];
   friendRequests: FriendRequest[];
 };
@@ -82,6 +87,7 @@ type AppDataState = PersistedState & {
   updateTask: (taskId: string, patch: Partial<WorkTask>) => void;
   moveTask: (taskId: string, status: TaskStatus, beforeTaskId?: string | null) => void;
   deleteTask: (taskId: string) => void;
+  setTaskCompletedToday: (taskId: string, completed: boolean) => void;
   searchFriendByEmail: (email: string) => Promise<Profile | null>;
   sendFriendRequest: (profile: Profile) => void;
   respondToFriendRequest: (requestId: string, action: 'accepted' | 'declined') => void;
@@ -138,6 +144,7 @@ function initialState(): PersistedState {
     profile,
     counts: createDemoCounts(today),
     tasks: createDemoTasks(),
+    taskCompletions: createDemoTaskCompletions(today),
     friends: createDemoFriends(today),
     friendRequests: createDemoRequests(),
   };
@@ -151,11 +158,17 @@ async function loadRemoteState(userId: string): Promise<PersistedState> {
     fetchTasks(userId),
     fetchFriendGraph(userId, today),
   ]);
+  const taskCompletions = await fetchTaskCompletions(
+    tasks.map((task) => task.id),
+    profile.trackingStartedOn,
+    today,
+  );
 
   return {
     profile,
     counts,
     tasks,
+    taskCompletions,
     friends: friendGraph.friends,
     friendRequests: friendGraph.friendRequests,
   };
@@ -169,6 +182,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<PersistedState>(() => initialState());
   const countMutationSequence = useRef(0);
   const countMutationQueue = useRef<Promise<void>>(Promise.resolve());
+  const taskCompletionMutationQueues = useRef(new Map<string, Promise<void>>());
   const isRemoteMode = Boolean(isSupabaseConfigured && auth.userId && auth.userId !== 'local-user');
 
   const refreshRemoteState = useCallback(async () => {
@@ -213,7 +227,11 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       if (!isMounted) return;
 
       if (raw) {
-        setState(JSON.parse(raw) as PersistedState);
+        const persisted = JSON.parse(raw) as PersistedState;
+        setState({
+          ...persisted,
+          taskCompletions: persisted.taskCompletions ?? [],
+        });
       } else {
         setState(initialState());
       }
@@ -425,12 +443,47 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     setState((current) => ({
       ...current,
       tasks: current.tasks.filter((task) => task.id !== taskId),
+      taskCompletions: current.taskCompletions.filter((completion) => completion.taskId !== taskId),
     }));
 
     if (isRemoteMode) {
       remoteDeleteTask(taskId).catch(() => reportRemoteFailure('Could not delete the task.'));
     }
   }, [isRemoteMode, reportRemoteFailure]);
+
+  const setTaskCompletedToday = useCallback<AppDataState['setTaskCompletedToday']>(
+    (taskId, completed) => {
+      setState((current) => ({
+        ...current,
+        taskCompletions: completed
+          ? [
+              ...current.taskCompletions.filter(
+                (completion) => completion.taskId !== taskId || completion.activityDate !== today,
+              ),
+              { taskId, activityDate: today },
+            ]
+          : current.taskCompletions.filter(
+              (completion) => completion.taskId !== taskId || completion.activityDate !== today,
+            ),
+      }));
+
+      if (isRemoteMode) {
+        const queuedMutation = (taskCompletionMutationQueues.current.get(taskId) ?? Promise.resolve())
+          .catch(() => undefined)
+          .then(() => remoteSetTodayTaskCompletion(taskId, completed))
+          .then(() => undefined)
+          .catch(() => reportRemoteFailure('Could not save the task check-in.'));
+
+        taskCompletionMutationQueues.current.set(taskId, queuedMutation);
+        queuedMutation.finally(() => {
+          if (taskCompletionMutationQueues.current.get(taskId) === queuedMutation) {
+            taskCompletionMutationQueues.current.delete(taskId);
+          }
+        });
+      }
+    },
+    [isRemoteMode, reportRemoteFailure, today],
+  );
 
   const searchFriendByEmail = useCallback<AppDataState['searchFriendByEmail']>(
     async (email) => {
@@ -579,6 +632,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       updateTask,
       moveTask,
       deleteTask,
+      setTaskCompletedToday,
       searchFriendByEmail,
       sendFriendRequest,
       respondToFriendRequest,
@@ -598,6 +652,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       searchFriendByEmail,
       sendFriendRequest,
       setTodayCount,
+      setTaskCompletedToday,
       state,
       today,
       updateProfile,

@@ -141,6 +141,32 @@ export type Database = {
         }
         Relationships: []
       }
+      task_daily_completions: {
+        Row: {
+          activity_date: string
+          completed_at: string
+          task_id: string
+        }
+        Insert: {
+          activity_date: string
+          completed_at?: string
+          task_id: string
+        }
+        Update: {
+          activity_date?: string
+          completed_at?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_daily_completions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           created_at: string
@@ -222,6 +248,10 @@ export type Database = {
       set_today_application_count: {
         Args: { next_count: number }
         Returns: number
+      }
+      set_today_task_completion: {
+        Args: { completed: boolean; target_task_id: string }
+        Returns: boolean
       }
     }
     Enums: {

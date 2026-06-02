@@ -1,6 +1,6 @@
 begin;
 
-select plan(48);
+select plan(58);
 
 create or replace function pg_temp.try_sql(sql text)
 returns text
@@ -128,6 +128,17 @@ values
     1
   );
 
+insert into public.task_daily_completions (task_id, activity_date)
+values
+  (
+    '10000000-0000-0000-0000-000000000001',
+    ((now() at time zone 'America/Los_Angeles')::date - 1)
+  ),
+  (
+    '10000000-0000-0000-0000-000000000002',
+    ((now() at time zone 'UTC')::date - 1)
+  );
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -175,6 +186,19 @@ select is(
 );
 
 select is((select count(*)::integer from public.tasks), 1, 'owner sees only their task rows');
+
+select is(
+  (select count(*)::integer from public.task_daily_completions),
+  1,
+  'owner sees only their private task completion rows'
+);
+
+select ok(
+  pg_temp.try_sql(
+    'insert into public.task_daily_completions (task_id, activity_date) values (''10000000-0000-0000-0000-000000000001'', current_date)'
+  ) <> 'ok',
+  'direct task completion inserts are blocked'
+);
 
 select is(
   pg_temp.try_sql(
@@ -245,6 +269,46 @@ select is(
 
 select is(public.adjust_today_application_count(3), 8, 'adjust_today_application_count increments today');
 select is(public.adjust_today_application_count(-2), 6, 'adjust_today_application_count decrements today');
+
+select is(
+  public.set_today_task_completion('10000000-0000-0000-0000-000000000001', true),
+  true,
+  'set_today_task_completion checks in an owned task'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.task_daily_completions
+    where task_id = '10000000-0000-0000-0000-000000000001'
+      and activity_date = (now() at time zone 'America/Los_Angeles')::date
+  ),
+  1,
+  'set_today_task_completion writes the profile-timezone date'
+);
+
+select is(
+  public.set_today_task_completion('10000000-0000-0000-0000-000000000001', false),
+  false,
+  'set_today_task_completion clears todays check-in'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.task_daily_completions
+    where task_id = '10000000-0000-0000-0000-000000000001'
+  ),
+  1,
+  'clearing todays task check-in preserves prior activity'
+);
+
+select ok(
+  pg_temp.try_sql(
+    'select public.set_today_task_completion(''10000000-0000-0000-0000-000000000002'', true)'
+  ) <> 'ok',
+  'set_today_task_completion rejects another users task'
+);
 
 select ok(
   pg_temp.try_sql('select public.set_today_application_count(-1)') <> 'ok',
@@ -428,11 +492,23 @@ select is(
 
 select is((select count(*)::integer from public.tasks), 0, 'stranger cannot read other users tasks');
 
+select is(
+  (select count(*)::integer from public.task_daily_completions),
+  0,
+  'stranger cannot read other users task completions'
+);
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
 select is((select count(*)::integer from public.tasks), 1, 'accepted friend cannot read owner tasks');
+
+select is(
+  (select count(*)::integer from public.task_daily_completions),
+  1,
+  'accepted friend can read only their own task completions'
+);
 
 select is(
   (
@@ -538,6 +614,12 @@ select is(
   has_function_privilege('anon', 'public.set_today_application_count(integer)', 'execute'),
   false,
   'anonymous users cannot set application counts'
+);
+
+select is(
+  has_function_privilege('anon', 'public.set_today_task_completion(uuid, boolean)', 'execute'),
+  false,
+  'anonymous users cannot set task completions'
 );
 
 select is(

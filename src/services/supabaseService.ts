@@ -5,6 +5,7 @@ import type {
   FriendRequest,
   ISODate,
   Profile,
+  TaskDailyCompletion,
   TaskStatus,
   WorkTask,
 } from '@/src/types/domain';
@@ -111,6 +112,45 @@ export async function fetchTasks(ownerId: string) {
 
   if (error) throw error;
   return data.map(toTask);
+}
+
+export async function fetchTaskCompletions(taskIds: string[], startDate: ISODate, endDate: ISODate) {
+  if (taskIds.length === 0) return [] as TaskDailyCompletion[];
+
+  const rows: { task_id: string; activity_date: string }[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('task_daily_completions')
+      .select('task_id,activity_date')
+      .in('task_id', taskIds)
+      .gte('activity_date', startDate)
+      .lte('activity_date', endDate)
+      .order('activity_date', { ascending: true })
+      .order('task_id', { ascending: true })
+      .range(from, from + countPageSize - 1);
+
+    if (error) throw error;
+
+    rows.push(...data);
+    if (data.length < countPageSize) break;
+    from += countPageSize;
+  }
+
+  return rows.map((row) => ({
+    taskId: row.task_id,
+    activityDate: row.activity_date as ISODate,
+  }));
+}
+
+export async function setTodayTaskCompletion(taskId: string, completed: boolean) {
+  const { data, error } = await supabase.rpc('set_today_task_completion', {
+    target_task_id: taskId,
+    completed,
+  });
+  if (error) throw error;
+  return data;
 }
 
 export async function fetchFriendGraph(userId: string, endDate: ISODate) {

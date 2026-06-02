@@ -29,7 +29,7 @@ test('local preview opens the dashboard and supports today count plus heatmap co
   await page.getByLabel("Decrease today's applications").click();
   await expect(todayInput).toHaveValue('11');
 
-  await page.getByRole('button', { name: '12M' }).click();
+  await page.getByRole('button', { name: '12M' }).first().click();
   await expect(page.getByText('Application Activity')).toBeVisible();
 
   await page.locator('[aria-label*="applications on"]').first().hover();
@@ -68,6 +68,22 @@ test('tasks can be created with due dates, moved, edited, and deleted', async ({
   });
   await updatedTaskCard.getByRole('button', { name: 'Delete task' }).click();
   await expect(page.getByText('Call hiring manager today')).toHaveCount(0);
+});
+
+test('new tasks expose a private daily homepage check-in heatmap', async ({ page }) => {
+  await enterLocalPreview(page);
+  await page.goto('/tasks');
+  await page.getByPlaceholder('Add a task').fill('Practice Leetcode');
+  await page.getByRole('button', { name: 'Create' }).click();
+
+  await page.goto('/');
+  const activityRow = page.locator('[data-testid^="task-activity-"]').filter({
+    hasText: 'Practice Leetcode',
+  });
+  await expect(activityRow).toBeVisible();
+  await activityRow.getByRole('button', { name: 'Mark Practice Leetcode done for today' }).click();
+  await expect(activityRow.getByRole('button', { name: 'Clear Practice Leetcode for today' })).toBeVisible();
+  await expect(activityRow.locator('[aria-label^="Completed on"]')).toHaveCount(1);
 });
 
 test('friends can be searched by exact email and requested', async ({ page }) => {

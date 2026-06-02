@@ -22,6 +22,8 @@ import { useTheme } from '@/src/theme/useTheme';
 import { useAppData } from '@/src/providers/AppDataProvider';
 import type { RangeMonths } from '@/src/types/domain';
 
+import { TaskActivitySection } from './TaskActivitySection';
+
 const rangeOptions: { label: string; value: RangeMonths }[] = [
   { label: '3M', value: 3 },
   { label: '6M', value: 6 },
@@ -244,6 +246,8 @@ export function HomeScreen() {
         </View>
         <Button title="Add one application" icon={Plus} onPress={() => data.adjustTodayCount(1)} />
       </Card>
+
+      <TaskActivitySection />
     </Screen>
   );
 }
